@@ -447,6 +447,12 @@ body.locked { overflow: hidden; }
 .chart-wrap svg { display: block; width: 100%; height: auto; }
 .chart-empty { padding: 22px 8px; text-align: center; color: var(--muted); font-size: 12.5px; }
 .chart-legend { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 4px; }
+.chart-grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; }
+.chart-axis { fill: var(--muted); font-size: 10px; }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+.chart-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.chart-stop-top { stop-color: var(--accent); stop-opacity: 0.26; }
+.chart-stop-bottom { stop-color: var(--accent); stop-opacity: 0; }
 
 .bar-list { display: flex; flex-direction: column; gap: 9px; }
 .bar-row { display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 9px; }

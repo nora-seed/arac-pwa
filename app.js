@@ -555,20 +555,20 @@
     const grid = [0, 0.5, 1].map(function (t) {
       const value = max - (max - min) * t;
       const yy = pad.t + innerH * t;
-      return '<line x1="' + pad.l + '" y1="' + yy.toFixed(1) + '" x2="' + (W - pad.r) + '" y2="' + yy.toFixed(1) + '" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 4"/>' +
-        '<text x="' + (pad.l - 6) + '" y="' + (yy + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + esc(L.formatNumber(value, 1)) + "</text>";
+      return '<line class="chart-grid" x1="' + pad.l + '" y1="' + yy.toFixed(1) + '" x2="' + (W - pad.r) + '" y2="' + yy.toFixed(1) + '"/>' +
+        '<text class="chart-axis" x="' + (pad.l - 6) + '" y="' + (yy + 3.5).toFixed(1) + '" text-anchor="end">' + esc(L.formatNumber(value, 1)) + "</text>";
     }).join("");
     const labelIdx = points.length > 4 ? [0, Math.floor((points.length - 1) / 2), points.length - 1] : [0, points.length - 1];
     const xLabels = labelIdx.map(function (i) {
-      return '<text x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? "start" : i === points.length - 1 ? "end" : "middle") + '" font-size="10" fill="var(--muted)">' + esc(points[i].label) + "</text>";
+      return '<text class="chart-axis" x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? "start" : i === points.length - 1 ? "end" : "middle") + '">' + esc(points[i].label) + "</text>";
     }).join("");
     const last = coords[coords.length - 1];
     return '<div class="chart-wrap"><svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(unit + " grafiği") + '">' +
-      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.26"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>' +
+      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop class="chart-stop-top" offset="0%"/><stop class="chart-stop-bottom" offset="100%"/></linearGradient></defs>' +
       grid +
       '<path d="' + area + '" fill="url(#' + gid + ')"/>' +
-      '<polyline points="' + line + '" fill="none" stroke="var(--accent)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>' +
-      '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>' +
+      '<polyline class="chart-line" points="' + line + '"/>' +
+      '<circle class="chart-dot" cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="4"/>' +
       xLabels + "</svg></div>" +
       '<div class="chart-legend"><span>' + esc(points[0].label) + "</span><span>" + esc(points[points.length - 1].label) + "</span></div>";
   }
