@@ -7,13 +7,29 @@
 
   const FUEL_TYPES = [
     { id: "gasoline", name: "Benzin" },
+    { id: "gasoline_lpg", name: "Benzin + LPG" },
     { id: "diesel", name: "Dizel" },
     { id: "lpg", name: "LPG" },
     { id: "hybrid", name: "Hibrit" },
     { id: "electric", name: "Elektrik" }
   ];
 
+  const FUEL_KINDS = [
+    { id: "gasoline", name: "Benzin" },
+    { id: "lpg", name: "LPG" }
+  ];
+
+  const STATIONS = ["Shell", "Opet", "TP", "Aytemiz"];
+
+  const MAINTENANCE_ITEMS = [
+    { id: "oil", name: "Yağ" },
+    { id: "air", name: "Hava filtresi" },
+    { id: "fuel", name: "Yakıt filtresi" },
+    { id: "pollen", name: "Polen filtresi" }
+  ];
+
   const SERVICE_TYPES = [
+    { id: "general", name: "Genel bakım", short: "Genel" },
     { id: "oil", name: "Motor yağı", short: "Yağ" },
     { id: "filter", name: "Filtre", short: "Filtre" },
     { id: "tire", name: "Lastik", short: "Lastik" },
@@ -258,6 +274,69 @@
     return labelFor(FUEL_TYPES, id, "Diğer");
   }
 
+  function fuelKindName(id) {
+    return labelFor(FUEL_KINDS, id, "");
+  }
+
+  function fuelTypeOf(vehicle) {
+    if (typeof vehicle === "string") return vehicle;
+    return (vehicle && vehicle.fuelType) || "";
+  }
+
+  function isElectric(vehicle) {
+    return fuelTypeOf(vehicle) === "electric";
+  }
+
+  function isDualFuel(vehicle) {
+    return fuelTypeOf(vehicle) === "gasoline_lpg";
+  }
+
+  function energyUnit(vehicle) {
+    if (isElectric(vehicle)) {
+      return {
+        amount: "kWh",
+        amountLower: "kWh",
+        short: "kWh",
+        tank: "Batarya (kWh)",
+        price: "kWh fiyatı",
+        consumption: "kWh/100km",
+        full: "Bataryayı doldurdum",
+        fullShort: "Tam şarj",
+        partial: "Kısmi şarj"
+      };
+    }
+    return {
+      amount: "Litre",
+      amountLower: "litre",
+      short: "L",
+      tank: "Depo (L)",
+      price: "Litre fiyatı",
+      consumption: "L/100km",
+      full: "Depoyu doldurdum",
+      fullShort: "Dolu",
+      partial: "Kısmi dolum"
+    };
+  }
+
+  function validMaintenanceItems(items) {
+    const list = Array.isArray(items) ? items : [];
+    return MAINTENANCE_ITEMS.filter(function (item) {
+      return list.indexOf(item.id) >= 0;
+    }).map(function (item) { return item.id; });
+  }
+
+  function serviceItems(service) {
+    if (!service || service.type !== "general") return [];
+    return validMaintenanceItems(service.items);
+  }
+
+  function maintenanceItemsText(items) {
+    const ids = validMaintenanceItems(items);
+    return MAINTENANCE_ITEMS.filter(function (item) {
+      return ids.indexOf(item.id) >= 0;
+    }).map(function (item) { return item.name; }).join(", ");
+  }
+
   function defaultState() {
     return {
       version: 1,
@@ -350,6 +429,7 @@
         pricePerL: Math.max(0, num(log.pricePerL)),
         total: Math.max(0, num(log.total)),
         full: !!log.full,
+        fuelKind: FUEL_KINDS.some(function (k) { return k.id === log.fuelKind; }) ? log.fuelKind : "",
         station: String(log.station || "").trim(),
         note: String(log.note || "").trim(),
         createdAt: log.createdAt || new Date().toISOString()
@@ -357,10 +437,16 @@
     });
 
     const services = arrayOf(raw.services).filter(keep).map(function (s) {
+      const type = SERVICE_TYPES.some(function (t) { return t.id === s.type; }) ? s.type : "other";
+      const rawItems = Array.isArray(s.items) ? s.items : null;
+      const items = type === "general"
+        ? (rawItems ? validMaintenanceItems(rawItems) : MAINTENANCE_ITEMS.map(function (item) { return item.id; }))
+        : [];
       return {
         id: String(s.id || uid("service")),
         vehicleId: s.vehicleId,
-        type: SERVICE_TYPES.some(function (t) { return t.id === s.type; }) ? s.type : "other",
+        type: type,
+        items: items,
         date: isISODate(s.date) ? s.date : todayISO(),
         odometer: Math.max(0, Math.round(num(s.odometer))),
         cost: Math.max(0, num(s.cost)),
@@ -479,7 +565,7 @@
 
   function fuelConsumptionEntries(logs) {
     const sorted = arrayOf(logs)
-      .filter(function (log) { return log && num(log.odometer) >= 0 && num(log.liters) > 0; })
+      .filter(function (log) { return log && num(log.odometer) >= 0 && (num(log.liters) > 0 || log.full); })
       .slice()
       .sort(function (a, b) {
         if (num(a.odometer) !== num(b.odometer)) return num(a.odometer) - num(b.odometer);
@@ -538,7 +624,9 @@
   }
 
   function fuelTotals(logs) {
-    const list = arrayOf(logs).filter(function (log) { return log && num(log.liters) > 0; });
+    const list = arrayOf(logs).filter(function (log) {
+      return log && (num(log.liters) > 0 || fuelLogTotal(log) > 0);
+    });
     let liters = 0;
     let cost = 0;
     let fullCount = 0;
@@ -564,6 +652,22 @@
     };
   }
 
+  function fuelBreakdown(logs) {
+    return FUEL_KINDS.map(function (kind) {
+      const list = arrayOf(logs).filter(function (log) { return log && log.fuelKind === kind.id; });
+      const entries = fuelConsumptionEntries(list);
+      return {
+        kind: kind.id,
+        name: kind.name,
+        logs: list,
+        totals: fuelTotals(list),
+        entries: entries,
+        avgConsumption: avgConsumption(entries, 3),
+        lastConsumption: entries.length ? entries[entries.length - 1] : null
+      };
+    });
+  }
+
   function costEntries(state, vehicleId) {
     const out = [];
     forVehicle(state.fuelLogs, vehicleId).forEach(function (log) {
@@ -574,7 +678,7 @@
         date: log.date,
         amount: fuelLogTotal(log),
         odometer: num(log.odometer),
-        title: "Yakıt",
+        title: log.fuelKind ? "Yakıt · " + fuelKindName(log.fuelKind) : "Yakıt",
         note: log.note || "",
         source: log
       });
@@ -707,7 +811,10 @@
     ];
 
     return specs.map(function (spec) {
-      const related = forVehicle(services, vehicle.id).filter(function (s) { return s.type === spec.type; });
+      const related = forVehicle(services, vehicle.id).filter(function (s) {
+        if (s.type === spec.type) return true;
+        return spec.type === "oil" && s.type === "general" && serviceItems(s).indexOf("oil") >= 0;
+      });
       const last = sortByDateDesc(related)[0] || null;
       const baseDate = (last && last.date) || vehicle.purchaseDate || "";
       const baseOdo = last && num(last.odometer) > 0 ? num(last.odometer) : num(vehicle.purchaseOdometer);
@@ -801,6 +908,7 @@
       avgConsumption: avgConsumption(consumption, 3),
       avgConsumptionAll: avgConsumption(consumption),
       fuelTotals: fuel,
+      fuelBreakdown: isDualFuel(vehicle) ? fuelBreakdown(logs) : [],
       totalCost: sumAmount(entries),
       monthCost: monthCost,
       costPerKm: costPerKm(state, vehicleId),
@@ -818,6 +926,9 @@
 
   return {
     FUEL_TYPES: FUEL_TYPES,
+    FUEL_KINDS: FUEL_KINDS,
+    STATIONS: STATIONS,
+    MAINTENANCE_ITEMS: MAINTENANCE_ITEMS,
     SERVICE_TYPES: SERVICE_TYPES,
     EXPENSE_CATEGORIES: EXPENSE_CATEGORIES,
     DOCUMENT_TYPES: DOCUMENT_TYPES,
@@ -850,6 +961,13 @@
     expenseCategoryColor: expenseCategoryColor,
     documentTypeName: documentTypeName,
     fuelTypeName: fuelTypeName,
+    fuelKindName: fuelKindName,
+    isElectric: isElectric,
+    isDualFuel: isDualFuel,
+    energyUnit: energyUnit,
+    validMaintenanceItems: validMaintenanceItems,
+    serviceItems: serviceItems,
+    maintenanceItemsText: maintenanceItemsText,
     defaultState: defaultState,
     defaultIntervals: defaultIntervals,
     normalizeVehicle: normalizeVehicle,
@@ -865,6 +983,7 @@
     fuelConsumptionEntries: fuelConsumptionEntries,
     avgConsumption: avgConsumption,
     fuelTotals: fuelTotals,
+    fuelBreakdown: fuelBreakdown,
     costEntries: costEntries,
     monthlyTotals: monthlyTotals,
     categoryTotals: categoryTotals,

@@ -281,25 +281,34 @@
     const v = activeVehicle();
     const d = L.dashboard(state, v.id, today());
     const c = L.currencySymbol(state.settings.currency);
+    const unit = L.energyUnit(v);
+    const dual = L.isDualFuel(v);
     const reminders = d.reminders.slice(0, 4);
     const hasData = d.fuelTotals.entries || state.services.length || state.expenses.length;
+    const fuelSub = dual
+      ? d.fuelBreakdown.map(function (part) { return part.name + " " + money(part.totals.cost); }).join(" · ")
+      : money(d.fuelTotals.cost);
+    const fuelQuickSub = L.isElectric(v) ? "kWh ve KM kaydı" : dual ? "Benzin / LPG kaydı" : "Litre ve KM kaydı";
 
     let html = "";
     html += '<section class="hero">' +
       '<div class="hero-top"><div><h2>' + esc(L.vehicleName(v)) + "</h2>" +
-      '<p class="hero-sub">' + esc(L.vehicleSubtitle(v) || L.fuelTypeName(v.fuelType)) + "</p></div>" +
-      (v.plate ? '<span class="plate">' + esc(v.plate) + "</span>" : "") + "</div>" +
+      '<p class="hero-sub">' + esc([L.vehicleSubtitle(v), L.fuelTypeName(v.fuelType)].filter(Boolean).join(" · ")) + "</p></div>" +
+      '<div class="hero-side">' +
+      (v.plate ? '<span class="plate">' + esc(v.plate) + "</span>" : "") +
+      '<button class="hero-edit" type="button" data-action="edit-vehicle" data-id="' + esc(v.id) + '" aria-label="Aracı düzenle" title="Aracı düzenle">' + ICONS.edit + "</button>" +
+      "</div></div>" +
       '<div class="hero-stats">' +
       '<div class="hero-stat"><span>Güncel KM</span><strong>' + L.formatNumber(d.odometer) + "</strong></div>" +
-      '<div class="hero-stat"><span>Ort. tüketim</span><strong>' + (d.avgConsumption ? L.formatNumber(d.avgConsumption, 1) + " <small>L/100</small>" : "—") + "</strong></div>" +
+      '<div class="hero-stat"><span>Ort. tüketim</span><strong>' + (d.avgConsumption ? L.formatNumber(d.avgConsumption, 1) + " <small>" + esc(unit.short) + "/100</small>" : "—") + "</strong></div>" +
       '<div class="hero-stat"><span>Bu ay masraf</span><strong>' + L.formatNumber(d.monthCost, 0) + " <small>" + esc(c) + "</small></strong></div>" +
       "</div></section>";
 
     html += '<div class="stat-grid">' +
-      statCard("Son tüketim", d.lastConsumption ? L.formatNumber(d.lastConsumption.per100, 1) + " <small>L/100km</small>" : "—", d.lastConsumption ? L.formatDateTR(d.lastConsumption.date) : "Dolu depo bekleniyor") +
-      statCard("Toplam maliyet", money(d.totalCost), d.fuelTotals.entries + " yakıt · " + state.services.filter(function (s) { return s.vehicleId === v.id; }).length + " bakım") +
-      statCard("KM başı maliyet", d.costPerKm ? L.formatMoney(d.costPerKm, state.settings.currency) + " <small>/km</small>" : "—", "Yakıt + bakım + masraf") +
-      statCard("Yakıt", L.formatNumber(d.fuelTotals.liters, 0) + " <small>L</small>", money(d.fuelTotals.cost)) +
+      statCard("Son tüketim", d.lastConsumption ? L.formatNumber(d.lastConsumption.per100, 1) + " <small>" + esc(unit.consumption) + "</small>" : "—", d.lastConsumption ? L.formatDateTR(d.lastConsumption.date) : (L.isElectric(v) ? "Tam şarj bekleniyor" : "Dolu depo bekleniyor"), "cyan") +
+      statCard("Toplam maliyet", money(d.totalCost), d.fuelTotals.entries + " yakıt · " + state.services.filter(function (s) { return s.vehicleId === v.id; }).length + " bakım", "purple") +
+      statCard("KM başı maliyet", d.costPerKm ? L.formatMoney(d.costPerKm, state.settings.currency) + " <small>/km</small>" : "—", "Yakıt + bakım + masraf", "amber") +
+      statCard(L.isElectric(v) ? "Enerji" : "Yakıt", L.formatNumber(d.fuelTotals.liters, 0) + " <small>" + esc(unit.short) + "</small>", fuelSub, "blue") +
       "</div>";
 
     html += '<section class="section"><div class="section-head"><h3 class="section-title">Hatırlatmalar</h3>' +
@@ -310,7 +319,7 @@
     html += "</section>";
 
     html += '<section class="section"><div class="section-head"><h3 class="section-title">Hızlı işlem</h3></div><div class="quick-grid">' +
-      quickBtn("fuel", "Yakıt ekle", "Litre ve KM kaydı", "add-fuel") +
+      quickBtn("fuel", "Yakıt ekle", fuelQuickSub, "add-fuel") +
       quickBtn("service", "Bakım ekle", "Servis ve onarım", "add-service") +
       quickBtn("expense", "Masraf ekle", "Vergi, ceza, otopark", "add-expense") +
       quickBtn("doc", "Belge ekle", "Ruhsat, poliçe, not", "add-doc") +
@@ -325,12 +334,12 @@
     return html;
   }
 
-  function statCard(label, value, sub) {
-    return '<div class="stat"><div class="stat-label">' + esc(label) + '</div><div class="stat-value">' + value + '</div><div class="stat-sub">' + esc(sub) + "</div></div>";
+  function statCard(label, value, sub, tone) {
+    return '<div class="stat ' + (tone ? "tone-" + esc(tone) : "") + '"><div class="stat-label">' + esc(label) + '</div><div class="stat-value">' + value + '</div><div class="stat-sub">' + esc(sub) + "</div></div>";
   }
 
   function quickBtn(iconName, title, sub, action) {
-    return '<button class="quick-btn" type="button" data-action="' + action + '"><span class="q-icon">' + (ICONS[iconName] || ICONS.plus) + "</span><span><strong>" + esc(title) + "</strong><small>" + esc(sub) + "</small></span></button>";
+    return '<button class="quick-btn tone-' + esc(iconName) + '" type="button" data-action="' + action + '"><span class="q-icon">' + (ICONS[iconName] || ICONS.plus) + "</span><span><strong>" + esc(title) + "</strong><small>" + esc(sub) + "</small></span></button>";
   }
 
   function reminderRow(item) {
@@ -361,43 +370,77 @@
 
   function renderFuel() {
     const v = activeVehicle();
+    const unit = L.energyUnit(v);
+    const dual = L.isDualFuel(v);
     const logs = L.sortByDateDesc(L.forVehicle(state.fuelLogs, v.id));
     const entries = L.fuelConsumptionEntries(logs);
     const totals = L.fuelTotals(logs);
     const avg = L.avgConsumption(entries, 3);
+    const breakdown = dual ? L.fuelBreakdown(logs) : [];
     const entryMap = {};
     entries.forEach(function (entry) { entryMap[entry.id] = entry; });
 
-    let html = pageHead("Yakıt", "Dolu depo yöntemiyle tüketim", '<button class="btn small primary" type="button" data-action="add-fuel">' + ICONS.plus + " Ekle</button>");
-    html += '<div class="stat-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">' +
-      statCard("Ort. tüketim", avg ? L.formatNumber(avg, 1) + " <small>L/100</small>" : "—", "Son 3 dolum") +
-      statCard("Toplam yakıt", L.formatNumber(totals.liters, 0) + " <small>L</small>", totals.entries + " kayıt") +
-      statCard("Yakıt maliyeti", money(totals.cost), "Ort. " + money(totals.avgPrice) + "/L") +
-      "</div>";
+    const subtitle = dual ? "Benzin ve LPG tüketimi ayrı hesaplanır" : L.isElectric(v) ? "Tam şarj yöntemiyle tüketim" : "Dolu depo yöntemiyle tüketim";
+    let html = pageHead("Yakıt", subtitle, '<button class="btn small primary" type="button" data-action="add-fuel">' + ICONS.plus + " Ekle</button>");
 
-    html += '<section class="section"><div class="chart-card">' +
-      '<div class="chart-head"><h3>Tüketim trendi</h3><span>son 12 dolum</span></div>' +
-      lineChart(entries.slice(-12).map(function (entry) { return { label: L.formatDateTR(entry.date).slice(0, 5), value: entry.per100 }; }), "L/100km") +
-      "</div></section>";
+    if (dual) {
+      const gas = breakdown.find(function (part) { return part.kind === "gasoline"; });
+      const lpg = breakdown.find(function (part) { return part.kind === "lpg"; });
+      html += '<div class="stat-grid">' +
+        statCard("Benzin ort.", gas.avgConsumption ? L.formatNumber(gas.avgConsumption, 1) + " <small>" + esc(unit.consumption) + "</small>" : "—", "Son 3 dolum", "blue") +
+        statCard("LPG ort.", lpg.avgConsumption ? L.formatNumber(lpg.avgConsumption, 1) + " <small>" + esc(unit.consumption) + "</small>" : "—", "Son 3 dolum", "green") +
+        statCard("Toplam yakıt", L.formatNumber(totals.liters, 0) + " <small>" + esc(unit.short) + "</small>", "Benzin " + L.formatNumber(gas.totals.liters, 0) + " · LPG " + L.formatNumber(lpg.totals.liters, 0) + " " + unit.short, "amber") +
+        statCard("Yakıt maliyeti", money(totals.cost), "Benzin " + money(gas.totals.cost) + " · LPG " + money(lpg.totals.cost), "purple") +
+        "</div>";
+    } else {
+      html += '<div class="stat-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">' +
+        statCard("Ort. tüketim", avg ? L.formatNumber(avg, 1) + " <small>" + esc(unit.consumption) + "</small>" : "—", "Son 3 dolum", "cyan") +
+        statCard(L.isElectric(v) ? "Toplam enerji" : "Toplam yakıt", L.formatNumber(totals.liters, 0) + " <small>" + esc(unit.short) + "</small>", totals.entries + " kayıt", "blue") +
+        statCard("Yakıt maliyeti", money(totals.cost), "Ort. " + money(totals.avgPrice) + "/" + unit.short, "amber") +
+        "</div>";
+    }
+
+    if (dual) {
+      const charts = breakdown.map(function (part) {
+        if (part.entries.length < 2) return "";
+        return '<section class="section"><div class="chart-card">' +
+          '<div class="chart-head"><h3>' + esc(part.name) + ' tüketim trendi</h3><span>son 12 ' + (L.isElectric(v) ? "şarj" : "dolum") + '</span></div>' +
+          lineChart(part.entries.slice(-12).map(function (entry) { return { label: L.formatDateTR(entry.date).slice(0, 5), value: entry.per100 }; }), unit.consumption) +
+          "</div></section>";
+      }).join("");
+      html += charts || ('<section class="section"><div class="chart-card">' +
+        '<div class="chart-head"><h3>Tüketim trendi</h3><span>son 12 ' + (L.isElectric(v) ? "şarj" : "dolum") + '</span></div>' +
+        lineChart([], unit.consumption) + "</div></section>");
+    } else {
+      html += '<section class="section"><div class="chart-card">' +
+        '<div class="chart-head"><h3>Tüketim trendi</h3><span>son 12 ' + (L.isElectric(v) ? "şarj" : "dolum") + '</span></div>' +
+        lineChart(entries.slice(-12).map(function (entry) { return { label: L.formatDateTR(entry.date).slice(0, 5), value: entry.per100 }; }), unit.consumption) +
+        "</div></section>";
+    }
 
     html += '<section class="section"><div class="section-head"><h3 class="section-title">Yakıt kayıtları</h3><span class="badge accent">' + logs.length + "</span></div>";
     if (!logs.length) {
-      html += emptyState("fuel", "Yakıt kaydı yok", "İlk dolumu ekleyerek tüketim takibine başla.", '<button class="btn primary" type="button" data-action="add-fuel">Yakıt ekle</button>');
+      html += emptyState("fuel", "Yakıt kaydı yok", (L.isElectric(v) ? "İlk şarjı" : "İlk dolumu") + " ekleyerek tüketim takibine başla.", '<button class="btn primary" type="button" data-action="add-fuel">Yakıt ekle</button>');
     } else {
       html += '<div class="list">' + logs.map(function (log) {
         const entry = entryMap[log.id];
-        const sub = L.formatDateTR(log.date) + " · " + km(log.odometer) + " · " + L.formatNumber(log.liters, 2) + " L" + (log.full ? "" : " (kısmi)") + (log.station ? " · " + log.station : "");
+        const kindBadge = log.fuelKind ? '<span class="badge ' + esc(log.fuelKind) + '">' + esc(L.fuelKindName(log.fuelKind)) + '</span>' : "";
+        const amount = log.liters > 0 ? L.formatNumber(log.liters, 2) + " " + unit.short : (log.full ? unit.fullShort : "—");
+        const sub = L.formatDateTR(log.date) + " · " + km(log.odometer) + " · " + amount + (!log.full ? " (" + unit.partial + ")" : "") + (log.station ? " · " + log.station : "");
+        const priceNote = log.note ? esc(log.note) : (log.pricePerL > 0 ? L.formatMoney(log.pricePerL, state.settings.currency) + "/" + unit.short : "—");
         return '<div class="item"><span class="item-icon fuel">' + ICONS.fuel + "</span>" +
           '<div class="item-body"><div class="item-title"><span>' + esc(L.formatDateTR(log.date)) + "</span>" +
-          (entry ? '<span class="badge cyan">' + L.formatNumber(entry.per100, 1) + " L/100</span>" : "") + "</div>" +
+          kindBadge +
+          (entry ? '<span class="badge cyan">' + L.formatNumber(entry.per100, 1) + " " + esc(unit.short) + "/100</span>" : "") + "</div>" +
           '<div class="item-sub">' + esc(sub) + "</div></div>" +
           '<div class="item-side"><div class="item-amount">' + money(L.fuelLogTotal(log)) + "</div>" +
-          '<div class="item-note">' + (log.note ? esc(log.note) : L.formatMoney(log.pricePerL, state.settings.currency) + "/L") + "</div></div>" +
+          '<div class="item-note">' + priceNote + "</div></div>" +
           '<div class="item-actions"><button class="mini-btn" type="button" data-action="edit-fuel" data-id="' + esc(log.id) + '" aria-label="Düzenle" title="Düzenle">' + ICONS.edit + "</button>" +
           '<button class="mini-btn danger" type="button" data-action="delete-fuel" data-id="' + esc(log.id) + '" aria-label="Sil" title="Sil">' + ICONS.trash + "</button></div></div>";
       }).join("") + "</div>";
     }
     html += "</section>";
+
     return html;
   }
 
@@ -416,12 +459,13 @@
 
     html += '<section class="section"><div class="section-head"><h3 class="section-title">Servis kayıtları</h3><span class="badge accent">' + services.length + "</span></div>";
     if (!services.length) {
-      html += emptyState("service", "Bakım kaydı yok", "Yağ, lastik, muayene ve diğer bakımları buraya ekle.", '<button class="btn primary" type="button" data-action="add-service">Bakım ekle</button>');
+      html += emptyState("service", "Bakım kaydı yok", "Genel bakım, yağ, lastik, muayene ve diğer bakımları buraya ekle.", '<button class="btn primary" type="button" data-action="add-service">Bakım ekle</button>');
     } else {
       html += '<div class="list">' + services.map(function (s) {
         const next = [s.nextDate ? L.formatDateTR(s.nextDate) : "", s.nextOdometer ? km(s.nextOdometer) : ""].filter(Boolean).join(" · ");
-        const sub = L.formatDateTR(s.date) + " · " + km(s.odometer) + (next ? " · Sonraki: " + next : "");
-        return '<div class="item"><span class="item-icon service">' + ICONS.service + "</span>" +
+        const itemsText = L.maintenanceItemsText(s.items);
+        const sub = (itemsText ? itemsText + " · " : "") + L.formatDateTR(s.date) + " · " + km(s.odometer) + (next ? " · Sonraki: " + next : "");
+        return '<div class="item"><span class="item-icon service' + (s.type === "general" ? " general" : "") + '">' + ICONS.service + "</span>" +
           '<div class="item-body"><div class="item-title"><span>' + esc(L.serviceTypeName(s.type)) + "</span></div>" +
           '<div class="item-sub">' + esc(sub) + (s.note ? " · " + esc(s.note) : "") + "</div></div>" +
           '<div class="item-side"><div class="item-amount">' + money(s.cost) + "</div></div>" +
@@ -560,7 +604,7 @@
 
   function lineChart(points, unit) {
     if (!points || points.length < 2) {
-      return '<div class="chart-empty">Grafik için en az iki dolu depo kaydı gerekir.</div>';
+      return '<div class="chart-empty">Grafik için en az iki tam dolum kaydı gerekir.</div>';
     }
     const W = 600;
     const H = 170;
@@ -618,7 +662,7 @@
     showSheet(
       sheetHead("Ne eklemek istersin?", v ? L.vehicleName(v) + " için yeni kayıt" : "Önce araç ekle") +
       '<div class="quick-grid" style="margin-bottom:6px">' +
-      quickBtn("fuel", "Yakıt", "Litre, fiyat, KM", "add-fuel") +
+      quickBtn("fuel", "Yakıt", "Tutar, fiyat, KM", "add-fuel") +
       quickBtn("service", "Bakım", "Servis ve onarım", "add-service") +
       quickBtn("expense", "Masraf", "Vergi, ceza, diğer", "add-expense") +
       quickBtn("doc", "Belge", "Ruhsat, poliçe, not", "add-doc") +
@@ -723,17 +767,32 @@
     if (!v) { openVehicleForm(null); return; }
     const currentOdo = L.currentOdometer(state, v.id);
     const f = existing || {};
+    const unit = L.energyUnit(v);
+    const dual = L.isDualFuel(v);
     const price = f.pricePerL || (f.total && f.liters ? L.round(f.total / f.liters, 2) : 0);
+    const lastKindLog = L.sortByDateDesc(L.forVehicle(state.fuelLogs, v.id)).find(function (log) { return log.fuelKind; });
+    const kind = dual ? (f.fuelKind || (lastKindLog && lastKindLog.fuelKind) || "gasoline") : "";
+    const station = f.station || "";
+    const knownStation = L.STATIONS.indexOf(station) >= 0;
+    const stationOther = station && !knownStation ? station : "";
+    const stationValue = station ? (knownStation ? station : "__other") : "";
+
     showSheet(
-      sheetHead(existing ? "Yakıt kaydını düzenle" : "Yakıt kaydı", "Dolu depo yöntemiyle tüketim hesaplanır.") +
+      sheetHead(existing ? "Yakıt kaydını düzenle" : "Yakıt kaydı", dual ? "Benzin ve LPG kaydı ayrı tutulur." : L.isElectric(v) ? "Tam şarj yöntemiyle tüketim hesaplanır." : "Dolu depo yöntemiyle tüketim hesaplanır.") +
       '<form class="form" id="fuelForm" novalidate>' +
       '<div class="field-row"><div class="field"><label for="fuelDate">Tarih</label><input id="fuelDate" name="date" type="date" value="' + esc(f.date || today()) + '" required>' + errorSlot("date") + "</div>" +
       '<div class="field"><label for="fuelOdo">Kilometre</label><input id="fuelOdo" name="odometer" inputmode="numeric" value="' + esc(f.odometer || currentOdo || "") + '" placeholder="örn. 125000" required>' + errorSlot("odometer") + "</div></div>" +
-      '<div class="field-row"><div class="field"><label for="fuelLiters">Litre</label><input id="fuelLiters" name="liters" inputmode="decimal" value="' + esc(f.liters || "") + '" placeholder="örn. 42,5" required>' + errorSlot("liters") + "</div>" +
-      '<div class="field"><label for="fuelPrice">Litre fiyatı</label><input id="fuelPrice" name="pricePerL" inputmode="decimal" value="' + esc(price || "") + '" placeholder="örn. 42,50">' + errorSlot("pricePerL") + "</div></div>" +
+      (dual ? '<div class="field"><label for="fuelKind">Yakıt türü</label><select id="fuelKind" name="fuelKind">' + options(L.FUEL_KINDS, kind) + "</select></div>" : "") +
+      '<div class="field-row"><div class="field"><label for="fuelLiters">' + esc(unit.amount) + '</label><input id="fuelLiters" name="liters" inputmode="decimal" value="' + esc(f.liters || "") + '" placeholder="örn. ' + (L.isElectric(v) ? "45" : "42,5") + '" required>' + errorSlot("liters") + "</div>" +
+      '<div class="field"><label for="fuelPrice">' + esc(unit.price) + '</label><input id="fuelPrice" name="pricePerL" inputmode="decimal" value="' + esc(price || "") + '" placeholder="örn. 42,50">' + errorSlot("pricePerL") + "</div></div>" +
       '<div class="field-row"><div class="field"><label for="fuelTotal">Toplam tutar</label><input id="fuelTotal" name="total" inputmode="decimal" value="' + esc(f.total || "") + '" placeholder="Otomatik">' + errorSlot("total") + "</div>" +
-      '<div class="field" style="justify-content:flex-end"><label class="check"><input type="checkbox" name="full"' + (f.full === false ? "" : " checked") + '> Depoyu doldurdum</label><span class="hint">Kısmi dolumda işareti kaldır.</span></div></div>' +
-      '<div class="field"><label for="fuelStation">İstasyon (isteğe bağlı)</label><input id="fuelStation" name="station" value="' + esc(f.station || "") + '" placeholder="örn. Shell"></div>' +
+      '<div class="field" style="justify-content:flex-end"><label class="check"><input type="checkbox" name="full"' + (f.full === false ? "" : " checked") + "> " + esc(unit.full) + '</label><span class="hint" id="fuelFullHint"></span></div></div>' +
+      '<div class="field"><label for="fuelStation">' + (L.isElectric(v) ? "İstasyon / şarj yeri" : "İstasyon") + ' (isteğe bağlı)</label><select id="fuelStation" name="station"><option value="">Seçilmedi</option>' +
+      L.STATIONS.map(function (name) {
+        return '<option value="' + esc(name) + '"' + (stationValue === name ? " selected" : "") + ">" + esc(name) + "</option>";
+      }).join("") +
+      '<option value="__other"' + (stationValue === "__other" ? " selected" : "") + ">Diğer</option></select></div>" +
+      '<div class="field hidden" id="stationOtherField"><label for="fuelStationOther">İstasyon adı</label><input id="fuelStationOther" name="stationOther" value="' + esc(stationOther) + '" placeholder="örn. Petrol Ofisi"></div>' +
       '<div class="field"><label for="fuelNote">Not (isteğe bağlı)</label><textarea id="fuelNote" name="note" rows="2">' + esc(f.note || "") + "</textarea></div>" +
       '<div class="form-actions"><button class="btn ghost" type="button" data-close>Vazgeç</button><button class="btn primary" type="submit">' + (existing ? "Güncelle" : "Kaydet") + "</button></div>" +
       "</form>"
@@ -743,34 +802,73 @@
     const litersEl = form.elements.liters;
     const priceEl = form.elements.pricePerL;
     const totalEl = form.elements.total;
-    function recalc() {
-      if (totalEl.dataset.manual === "1") return;
-      const liters = L.parseNumberInput(litersEl.value);
-      const unit = L.parseNumberInput(priceEl.value);
-      if (liters > 0 && unit > 0) totalEl.value = String(L.round(liters * unit, 2));
+    const fullEl = form.elements.full;
+    const fullHint = form.querySelector("#fuelFullHint");
+    const stationEl = form.elements.station;
+    const stationOtherWrap = form.querySelector("#stationOtherField");
+
+    function syncStation() {
+      const other = stationEl.value === "__other";
+      stationOtherWrap.classList.toggle("hidden", !other);
+      if (!other) form.elements.stationOther.value = "";
     }
-    litersEl.addEventListener("input", recalc);
+    stationEl.addEventListener("change", syncStation);
+    syncStation();
+
+    function recalc() {
+      const liters = L.parseNumberInput(litersEl.value);
+      const price = L.parseNumberInput(priceEl.value);
+      const total = L.parseNumberInput(totalEl.value);
+      if (fullEl.checked && total > 0 && price > 0 && (!(liters > 0) || litersEl.dataset.auto === "1")) {
+        litersEl.value = String(L.round(total / price, 2));
+        litersEl.dataset.auto = "1";
+      }
+      if (totalEl.dataset.manual === "1") return;
+      const amount = L.parseNumberInput(litersEl.value);
+      if (amount > 0 && price > 0) totalEl.value = String(L.round(amount * price, 2));
+    }
+
+    function syncFull() {
+      const full = fullEl.checked;
+      litersEl.disabled = full;
+      litersEl.required = !full;
+      fullHint.textContent = full
+        ? unit.amount + " alanı pasif. Girilen değer korunur; boşsa tutar ve " + unit.price.charAt(0).toLocaleLowerCase("tr") + unit.price.slice(1) + " ile hesaplanır. Manuel giriş için işareti kaldır."
+        : "Kısmi " + (L.isElectric(v) ? "şarjda" : "dolumda") + " " + unit.amount.toLowerCase() + " girmelisin. " + (L.isElectric(v) ? "Tam şarjda" : "Dolu depoda") + " işareti koy.";
+      recalc();
+    }
+
+    litersEl.addEventListener("input", function () {
+      litersEl.dataset.auto = "";
+      recalc();
+    });
     priceEl.addEventListener("input", recalc);
-    totalEl.addEventListener("input", function () { totalEl.dataset.manual = totalEl.value ? "1" : ""; });
+    totalEl.addEventListener("input", function () { totalEl.dataset.manual = totalEl.value ? "1" : ""; recalc(); });
+    fullEl.addEventListener("change", syncFull);
+    syncFull();
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       clearErrors(form);
       const date = readValue(form, "date");
       const odometer = Math.round(readNumber(form, "odometer"));
-      const liters = readNumber(form, "liters");
+      const full = fullEl.checked;
+      let liters = readNumber(form, "liters");
       let pricePerL = readNumber(form, "pricePerL");
       let total = readNumber(form, "total");
       if (!L.isISODate(date)) return setError(form, "date", "Geçerli bir tarih seç.");
       if (!(odometer > 0)) return setError(form, "odometer", "Kilometre 0'dan büyük olmalı.");
-      if (!(liters > 0)) return setError(form, "liters", "Litre 0'dan büyük olmalı.");
-      if (!(total > 0) && !(pricePerL > 0)) return setError(form, "total", "Tutar veya litre fiyatı gir.");
-      if (!(pricePerL > 0) && total > 0) pricePerL = L.round(total / liters, 2);
-      if (!(total > 0) && pricePerL > 0) total = L.round(liters * pricePerL, 2);
+      if (full && !(liters > 0) && pricePerL > 0 && total > 0) liters = L.round(total / pricePerL, 2);
+      if (!full && !(liters > 0)) return setError(form, "liters", unit.amount + " 0'dan büyük olmalı.");
+      if (!(total > 0) && !(pricePerL > 0)) return setError(form, "total", "Tutar veya " + unit.price.toLowerCase() + " gir.");
+      if (!(liters > 0) && !(total > 0)) return setError(form, "total", "Tutar veya " + unit.amount.toLowerCase() + " gir.");
+      if (!(pricePerL > 0) && total > 0 && liters > 0) pricePerL = L.round(total / liters, 2);
+      if (!(total > 0) && pricePerL > 0 && liters > 0) total = L.round(liters * pricePerL, 2);
       const latest = L.currentOdometer(state, v.id);
       if (!existing && latest > 0 && odometer < latest) {
         if (!window.confirm("Girilen kilometre (" + L.formatNumber(odometer) + " km) mevcut değerden (" + L.formatNumber(latest) + " km) düşük. Yine de kaydedilsin mi?")) return;
       }
+      const station = stationEl.value === "__other" ? readValue(form, "stationOther") : stationEl.value;
       const record = {
         id: existing ? existing.id : L.uid("fuel"),
         vehicleId: v.id,
@@ -779,8 +877,9 @@
         liters: L.round(liters, 2),
         pricePerL: L.round(pricePerL, 2),
         total: L.round(total, 2),
-        full: form.elements.full.checked,
-        station: readValue(form, "station"),
+        full: full,
+        fuelKind: dual ? (form.elements.fuelKind.value || "gasoline") : "",
+        station: station,
         note: readValue(form, "note"),
         createdAt: existing ? existing.createdAt : new Date().toISOString()
       };
@@ -802,11 +901,18 @@
     if (!v) { openVehicleForm(null); return; }
     const currentOdo = L.currentOdometer(state, v.id);
     const s = existing || {};
+    const allItems = L.MAINTENANCE_ITEMS.map(function (item) { return item.id; });
+    const checkedItems = s.type === "general" ? L.validMaintenanceItems(s.items) : allItems;
     showSheet(
       sheetHead(existing ? "Bakım kaydını düzenle" : "Bakım kaydı", "Servis, onarım ve resmi işlemler.") +
       '<form class="form" id="serviceForm" novalidate>' +
-      '<div class="field-row"><div class="field"><label for="serviceType">Tür</label><select id="serviceType" name="type">' + options(L.SERVICE_TYPES, s.type || "oil") + "</select></div>" +
+      '<div class="field-row"><div class="field"><label for="serviceType">Tür</label><select id="serviceType" name="type">' + options(L.SERVICE_TYPES, s.type || "general") + "</select></div>" +
       '<div class="field"><label for="serviceDate">Tarih</label><input id="serviceDate" name="date" type="date" value="' + esc(s.date || today()) + '">' + errorSlot("date") + "</div></div>" +
+      '<div class="field general-items' + (s.type === "general" ? "" : " hidden") + '" id="generalItems"><label>Genel bakım kalemleri</label><div class="check-grid">' +
+      L.MAINTENANCE_ITEMS.map(function (item) {
+        return '<label class="check"><input type="checkbox" name="items" value="' + esc(item.id) + '"' + (checkedItems.indexOf(item.id) >= 0 ? " checked" : "") + "> " + esc(item.name) + "</label>";
+      }).join("") +
+      '</div><span class="hint">Genel bakımda yapılan kalemleri işaretle.</span></div>' +
       '<div class="field-row"><div class="field"><label for="serviceOdo">Kilometre</label><input id="serviceOdo" name="odometer" inputmode="numeric" value="' + esc(s.odometer || currentOdo || "") + '" placeholder="örn. 125000">' + errorSlot("odometer") + "</div>" +
       '<div class="field"><label for="serviceCost">Maliyet</label><input id="serviceCost" name="cost" inputmode="decimal" value="' + esc(s.cost || "") + '" placeholder="örn. 2.500">' + errorSlot("cost") + "</div></div>" +
       '<div class="field-row"><div class="field"><label for="serviceNextDate">Sonraki tarih</label><input id="serviceNextDate" name="nextDate" type="date" value="' + esc(s.nextDate || "") + '"></div>' +
@@ -820,10 +926,18 @@
     const typeEl = form.elements.type;
     const dateEl = form.elements.date;
     const odoEl = form.elements.odometer;
+    const generalBox = form.querySelector("#generalItems");
+
+    function syncGeneral() {
+      generalBox.classList.toggle("hidden", typeEl.value !== "general");
+    }
+    syncGeneral();
+    typeEl.addEventListener("change", syncGeneral);
 
     function suggest() {
       const intervals = Object.assign({}, L.VEHICLE_INTERVALS_DEFAULTS, v.intervals || {});
       const map = {
+        general: { km: intervals.oilKm, months: intervals.oilMonths },
         oil: { km: intervals.oilKm, months: intervals.oilMonths },
         tire: { km: intervals.tireKm, months: intervals.tireMonths },
         inspection: { months: intervals.inspectionMonths },
@@ -849,10 +963,14 @@
       if (!L.isISODate(date)) return setError(form, "date", "Geçerli bir tarih seç.");
       if (!Number.isFinite(odometer) || odometer < 0) return setError(form, "odometer", "Geçerli bir kilometre gir.");
       if (cost < 0) return setError(form, "cost", "Maliyet negatif olamaz.");
+      const checked = typeEl.value === "general"
+        ? Array.prototype.slice.call(form.querySelectorAll('input[name="items"]:checked')).map(function (el) { return el.value; })
+        : [];
       const record = {
         id: existing ? existing.id : L.uid("service"),
         vehicleId: v.id,
         type: typeEl.value,
+        items: checked,
         date: date,
         odometer: odometer,
         cost: L.round(cost, 2),
@@ -1058,11 +1176,11 @@
       '<form class="form" id="vehicleForm" novalidate>' +
       '<div class="field"><label for="vehicleName">Araç adı</label><input id="vehicleName" name="name" value="' + esc(v.name || "") + '" placeholder="örn. Günlük araba" required>' + errorSlot("name") + "</div>" +
       '<div class="field-row"><div class="field"><label for="vehiclePlate">Plaka</label><input id="vehiclePlate" name="plate" value="' + esc(v.plate || "") + '" placeholder="34 ABC 123"></div>' +
-      '<div class="field"><label for="vehicleFuelType">Yakıt</label><select id="vehicleFuelType" name="fuelType">' + options(L.FUEL_TYPES, v.fuelType || "gasoline") + "</select></div></div>" +
+      '<div class="field"><label for="vehicleFuelType">Yakıt türü</label><select id="vehicleFuelType" name="fuelType">' + options(L.FUEL_TYPES, v.fuelType || "gasoline") + "</select></div></div>" +
       '<div class="field-row"><div class="field"><label for="vehicleBrand">Marka</label><input id="vehicleBrand" name="brand" value="' + esc(v.brand || "") + '" placeholder="Renault"></div>' +
       '<div class="field"><label for="vehicleModel">Model</label><input id="vehicleModel" name="model" value="' + esc(v.model || "") + '" placeholder="Clio"></div></div>' +
       '<div class="field-row"><div class="field"><label for="vehicleYear">Yıl</label><input id="vehicleYear" name="year" inputmode="numeric" value="' + esc(v.year || "") + '" placeholder="2020">' + errorSlot("year") + "</div>" +
-      '<div class="field"><label for="vehicleTank">Depo (L)</label><input id="vehicleTank" name="tankL" inputmode="decimal" value="' + esc(v.tankL || "") + '" placeholder="50"></div></div>' +
+      '<div class="field"><label for="vehicleTank" id="vehicleTankLabel">' + esc(L.energyUnit(v.fuelType || "gasoline").tank) + '</label><input id="vehicleTank" name="tankL" inputmode="decimal" value="' + esc(v.tankL || "") + '" placeholder="' + (L.isElectric(v.fuelType || "gasoline") ? "60" : "50") + '"></div></div>' +
       '<div class="field-row"><div class="field"><label for="vehicleOdo">Alış kilometresi</label><input id="vehicleOdo" name="purchaseOdometer" inputmode="numeric" value="' + esc(v.purchaseOdometer || "") + '" placeholder="120000">' + errorSlot("purchaseOdometer") + "</div>" +
       '<div class="field"><label for="vehiclePurchaseDate">Alış tarihi</label><input id="vehiclePurchaseDate" name="purchaseDate" type="date" value="' + esc(v.purchaseDate || "") + '"></div></div>' +
       '<details class="intervals"><summary>Bakım aralıkları ve muayene / sigorta</summary>' +
@@ -1077,6 +1195,17 @@
       "</form>"
     );
     const form = sheetBody.querySelector("#vehicleForm");
+    const fuelTypeEl = form.elements.fuelType;
+    const tankLabel = form.querySelector("#vehicleTankLabel");
+    const tankInput = form.elements.tankL;
+    function syncTank() {
+      const unit = L.energyUnit(fuelTypeEl.value);
+      tankLabel.textContent = unit.tank;
+      tankInput.placeholder = L.isElectric(fuelTypeEl.value) ? "60" : "50";
+    }
+    fuelTypeEl.addEventListener("change", syncTank);
+    syncTank();
+
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       clearErrors(form);

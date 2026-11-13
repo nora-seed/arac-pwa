@@ -257,3 +257,95 @@ test("varsayılan durum ve araç etiketleri", function () {
   assert.equal(L.vehicleName(unnamed), "Fiat Egea");
   assert.equal(L.activeVehicle(state), null);
 });
+
+test("elektrikli araçta enerji birimi kWh olur", function () {
+  assert.equal(L.isElectric("electric"), true);
+  assert.equal(L.isElectric({ fuelType: "gasoline" }), false);
+  const e = L.energyUnit("electric");
+  assert.equal(e.amount, "kWh");
+  assert.equal(e.tank, "Batarya (kWh)");
+  assert.equal(e.consumption, "kWh/100km");
+  assert.equal(e.short, "kWh");
+  const gas = L.energyUnit("gasoline");
+  assert.equal(gas.amount, "Litre");
+  assert.equal(gas.consumption, "L/100km");
+  assert.ok(L.FUEL_TYPES.some(function (f) { return f.id === "gasoline_lpg"; }));
+});
+
+test("benzin + LPG kayıtları ayrı tüketim ve maliyet üretir", function () {
+  const v = L.normalizeVehicle({ id: "v1", name: "Çift yakıt", fuelType: "gasoline_lpg" });
+  assert.equal(L.isDualFuel(v), true);
+  const logs = [
+    fuel({ id: "g1", odometer: 1000, liters: 40, total: 1600, fuelKind: "gasoline" }),
+    fuel({ id: "l1", odometer: 1000, liters: 20, total: 600, fuelKind: "lpg" }),
+    fuel({ id: "g2", odometer: 1400, liters: 30, total: 1200, fuelKind: "gasoline" }),
+    fuel({ id: "l2", odometer: 1400, liters: 15, total: 450, fuelKind: "lpg" })
+  ];
+  const parts = L.fuelBreakdown(logs);
+  const gas = parts.find(function (p) { return p.kind === "gasoline"; });
+  const lpg = parts.find(function (p) { return p.kind === "lpg"; });
+  assert.equal(gas.totals.liters, 70);
+  assert.equal(gas.totals.cost, 2800);
+  assert.equal(gas.avgConsumption, 7.5);
+  assert.equal(lpg.totals.liters, 35);
+  assert.equal(lpg.totals.cost, 1050);
+  assert.equal(lpg.avgConsumption, 3.75);
+  assert.equal(L.fuelKindName("lpg"), "LPG");
+});
+
+test("genel bakım kalemleri normalize edilir ve yağ hatırlatmasını besler", function () {
+  assert.deepEqual(L.validMaintenanceItems(["oil", "air", "yok"]), ["oil", "air"]);
+  assert.equal(L.maintenanceItemsText(["oil", "pollen"]), "Yağ, Polen filtresi");
+  const v = vehicle();
+  const services = [{
+    id: "s1", vehicleId: "v1", type: "general", items: ["oil", "air", "fuel", "pollen"],
+    date: "2026-01-10", odometer: 58000, cost: 3000, note: ""
+  }];
+  const items = L.autoReminders(v, services, "2026-11-13", 60000);
+  const oil = items.find(function (item) { return item.type === "oil"; });
+  assert.equal(oil.dueDate, "2027-01-10");
+  assert.equal(oil.dueOdometer, 68000);
+  const onlyFilter = [{
+    id: "s2", vehicleId: "v1", type: "general", items: ["air", "pollen"],
+    date: "2026-01-10", odometer: 58000, cost: 1000, note: ""
+  }];
+  const oil2 = L.autoReminders(v, onlyFilter, "2026-11-13", 60000).find(function (item) { return item.type === "oil"; });
+  assert.equal(oil2.dueDate, "2026-01-01");
+});
+
+test("yedekte genel bakım kalemleri ve yakıt türü korunur", function () {
+  const state = L.normalizeState({
+    vehicles: [{ id: "v1", name: "A", fuelType: "gasoline_lpg" }],
+    services: [
+      { id: "s1", vehicleId: "v1", type: "general" },
+      { id: "s2", vehicleId: "v1", type: "general", items: [] },
+      { id: "s3", vehicleId: "v1", type: "oil", items: ["oil"] }
+    ],
+    fuelLogs: [
+      { id: "f1", vehicleId: "v1", date: "2026-01-01", odometer: 1000, liters: 10, full: true, fuelKind: "lpg" },
+      { id: "f2", vehicleId: "v1", date: "2026-01-02", odometer: 1100, liters: 10, full: true, fuelKind: "bozuk" }
+    ]
+  });
+  assert.deepEqual(state.services[0].items, ["oil", "air", "fuel", "pollen"]);
+  assert.deepEqual(state.services[1].items, []);
+  assert.deepEqual(state.services[2].items, []);
+  assert.equal(state.fuelLogs[0].fuelKind, "lpg");
+  assert.equal(state.fuelLogs[1].fuelKind, "");
+  assert.deepEqual(L.STATIONS, ["Shell", "Opet", "TP", "Aytemiz"]);
+});
+
+test("litre girilmeyen dolu depo kaydı maliyete dahil olur", function () {
+  const logs = [
+    fuel({ id: "a", odometer: 1000, liters: 0, total: 1600, full: true }),
+    fuel({ id: "b", odometer: 1400, liters: 30, total: 1200, full: true })
+  ];
+  const totals = L.fuelTotals(logs);
+  assert.equal(totals.entries, 2);
+  assert.equal(totals.fullCount, 2);
+  assert.equal(totals.liters, 30);
+  assert.equal(totals.cost, 2800);
+  assert.equal(totals.distance, 400);
+  const entries = L.fuelConsumptionEntries(logs);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].per100, 7.5);
+});
