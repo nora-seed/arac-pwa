@@ -338,6 +338,15 @@
     return '<div class="stat ' + (tone ? "tone-" + esc(tone) : "") + '"><div class="stat-label">' + esc(label) + '</div><div class="stat-value">' + value + '</div><div class="stat-sub">' + esc(sub) + "</div></div>";
   }
 
+  const ITEM_TONES = {
+    fuel: "blue", service: "cyan", general: "green", tax: "amber", fine: "red",
+    insurance: "purple", parking: "cyan", wash: "green", toll: "blue", other: "pink", doc: "purple"
+  };
+
+  function itemTone(cls) {
+    return "tone-" + (ITEM_TONES[cls] || "blue");
+  }
+
   function quickBtn(iconName, title, sub, action) {
     return '<button class="quick-btn tone-' + esc(iconName) + '" type="button" data-action="' + action + '"><span class="q-icon">' + (ICONS[iconName] || ICONS.plus) + "</span><span><strong>" + esc(title) + "</strong><small>" + esc(sub) + "</small></span></button>";
   }
@@ -361,7 +370,7 @@
   function recentRow(entry) {
     const cls = entry.kind === "fuel" ? "fuel" : entry.kind === "service" ? "service" : entry.category;
     const iconName = entry.kind === "fuel" ? "fuel" : entry.kind === "service" ? "service" : "expense";
-    return '<button class="item" type="button" data-action="edit-' + (entry.kind === "fuel" ? "fuel" : entry.kind === "service" ? "service" : "expense") + '" data-id="' + esc(entry.id) + '" style="text-align:left">' +
+    return '<button class="item ' + itemTone(cls) + '" type="button" data-action="edit-' + (entry.kind === "fuel" ? "fuel" : entry.kind === "service" ? "service" : "expense") + '" data-id="' + esc(entry.id) + '" style="text-align:left">' +
       '<span class="item-icon ' + esc(cls) + '">' + (ICONS[iconName] || ICONS.expense) + "</span>" +
       '<span class="item-body"><span class="item-title"><span>' + esc(entry.title) + '</span></span>' +
       '<span class="item-sub">' + esc(L.formatDateTR(entry.date) + (entry.odometer ? " · " + km(entry.odometer) : "") + (entry.note ? " · " + entry.note : "")) + "</span></span>" +
@@ -428,7 +437,7 @@
         const amount = log.liters > 0 ? L.formatNumber(log.liters, 2) + " " + unit.short : (log.full ? unit.fullShort : "—");
         const sub = L.formatDateTR(log.date) + " · " + km(log.odometer) + " · " + amount + (!log.full ? " (" + unit.partial + ")" : "") + (log.station ? " · " + log.station : "");
         const priceNote = log.note ? esc(log.note) : (log.pricePerL > 0 ? L.formatMoney(log.pricePerL, state.settings.currency) + "/" + unit.short : "—");
-        return '<div class="item"><span class="item-icon fuel">' + ICONS.fuel + "</span>" +
+        return '<div class="item tone-blue"><span class="item-icon fuel">' + ICONS.fuel + "</span>" +
           '<div class="item-body"><div class="item-title"><span>' + esc(L.formatDateTR(log.date)) + "</span>" +
           kindBadge +
           (entry ? '<span class="badge cyan">' + L.formatNumber(entry.per100, 1) + " " + esc(unit.short) + "/100</span>" : "") + "</div>" +
@@ -465,7 +474,7 @@
         const next = [s.nextDate ? L.formatDateTR(s.nextDate) : "", s.nextOdometer ? km(s.nextOdometer) : ""].filter(Boolean).join(" · ");
         const itemsText = L.maintenanceItemsText(s.items);
         const sub = (itemsText ? itemsText + " · " : "") + L.formatDateTR(s.date) + " · " + km(s.odometer) + (next ? " · Sonraki: " + next : "");
-        return '<div class="item"><span class="item-icon service' + (s.type === "general" ? " general" : "") + '">' + ICONS.service + "</span>" +
+        return '<div class="item ' + (s.type === "general" ? "tone-green" : "tone-cyan") + '"><span class="item-icon service' + (s.type === "general" ? " general" : "") + '">' + ICONS.service + "</span>" +
           '<div class="item-body"><div class="item-title"><span>' + esc(L.serviceTypeName(s.type)) + "</span></div>" +
           '<div class="item-sub">' + esc(sub) + (s.note ? " · " + esc(s.note) : "") + "</div></div>" +
           '<div class="item-side"><div class="item-amount">' + money(s.cost) + "</div></div>" +
@@ -509,7 +518,7 @@
     } else {
       html += '<div class="list">' + expenses.map(function (e) {
         const sub = L.formatDateTR(e.date) + (e.odometer ? " · " + km(e.odometer) : "") + (e.note ? " · " + e.note : "");
-        return '<div class="item"><span class="item-icon ' + esc(e.category) + '">' + ICONS.expense + "</span>" +
+        return '<div class="item ' + itemTone(e.category) + '"><span class="item-icon ' + esc(e.category) + '">' + ICONS.expense + "</span>" +
           '<div class="item-body"><div class="item-title"><span>' + esc(L.expenseCategoryName(e.category)) + "</span></div>" +
           '<div class="item-sub">' + esc(sub) + "</div></div>" +
           '<div class="item-side"><div class="item-amount">' + money(e.amount) + "</div></div>" +
@@ -561,7 +570,7 @@
     } else {
       html += '<div class="list">' + state.vehicles.map(function (vehicle) {
         const isActive = state.settings.activeVehicleId === vehicle.id;
-        return '<div class="vehicle-card card item" style="align-items:flex-start"><span class="item-icon ' + (isActive ? "fuel" : "") + '">' + ICONS.car + "</span>" +
+        return '<div class="vehicle-card card item tone-pink" style="align-items:flex-start"><span class="item-icon ' + (isActive ? "fuel" : "") + '">' + ICONS.car + "</span>" +
           '<div class="item-body"><div class="item-title"><span>' + esc(L.vehicleName(vehicle)) + "</span>" + (isActive ? '<span class="badge accent">Aktif</span>' : "") + "</div>" +
           '<div class="item-sub">' + esc([L.vehicleSubtitle(vehicle), L.fuelTypeName(vehicle.fuelType), L.formatNumber(L.currentOdometer(state, vehicle.id)) + " km"].filter(Boolean).join(" · ")) + "</div>" +
           '<div class="vc-actions">' +
