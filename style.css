@@ -807,6 +807,23 @@ details.intervals .field { margin-top: 10px; }
 .vehicle-card.active { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .vehicle-card .vc-actions { display: flex; gap: 4px; margin-top: 8px; justify-content: flex-end; }
 
+.install-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 12px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--yellow-soft);
+  border: 1px solid color-mix(in srgb, var(--yellow) 30%, var(--border));
+}
+.install-hint .hint-body { flex: 1; min-width: 190px; }
+.install-hint strong { display: block; font-size: 12.5px; }
+.install-hint p { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.install-hint b { color: var(--text); }
+.install-hint .btn { flex: none; }
+
 .toast {
   position: fixed;
   left: 50%;

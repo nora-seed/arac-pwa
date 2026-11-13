@@ -4,6 +4,7 @@
   const L = window.AracLogic;
   const DB = window.AracDB;
   const LS_KEY = "aracTakip.v1";
+  const INSTALL_HINT_KEY = "aracTakip.installHint.v1";
   const ROUTES = ["panel", "yakit", "bakim", "masraf", "belgeler", "ayarlar"];
   const LS_DEFAULT = "panel";
 
@@ -74,6 +75,28 @@
   function currentRoute() {
     const hash = location.hash.replace(/^#/, "");
     return ROUTES.indexOf(hash) >= 0 ? hash : LS_DEFAULT;
+  }
+
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function isStandalone() {
+    const displayStandalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    return !!displayStandalone || window.navigator.standalone === true;
+  }
+
+  function installHintVisible() {
+    if (!isIOS() || isStandalone()) return false;
+    try { return localStorage.getItem(INSTALL_HINT_KEY) !== "1"; } catch (error) { return true; }
+  }
+
+  function installHintHTML() {
+    return '<div class="install-hint"><div class="hint-body">' +
+      "<strong>Safari sekmesinde açık</strong>" +
+      "<p>Bu pencere Safari ile birlikte küçülür. Uygulamayı ana ekran simgesinden aç. Simge Safari'de açılıyorsa silip yeniden ekle: <b>Paylaş → Ana Ekrana Ekle → \"Web Uygulaması Olarak Aç\" açık</b>.</p>" +
+      '</div><button class="btn small ghost" type="button" data-action="dismiss-hint">Anladım</button></div>';
   }
 
   function findById(list, id) {
@@ -206,7 +229,7 @@
     const fab = document.getElementById("fab");
     fab.classList.toggle("hidden", r === "ayarlar");
     const view = document.getElementById("view");
-    view.innerHTML = renderRoute(r);
+    view.innerHTML = (r === "panel" && installHintVisible() ? installHintHTML() : "") + renderRoute(r);
     loadPhotos();
   }
 
@@ -525,6 +548,11 @@
 
     html += '<section class="section"><div class="section-head"><h3 class="section-title">Hakkında</h3></div><div class="settings-group">' +
       '<div class="setting-row"><div><div class="setting-label">Araç Takip</div><div class="setting-sub">Sürüm 1.0 · ' + vCount + " araç · " + L.formatNumber(usage / 1024, 0) + " KB veri</div></div></div>" +
+      '<div class="setting-row"><div><div class="setting-label">Uygulama modu</div><div class="setting-sub">' +
+      (isStandalone()
+        ? "Ana ekran uygulaması olarak bağımsız çalışıyor."
+        : "Safari sekmesinde. Pencereyle küçülmemesi için ana ekran simgesinden aç; simge Safari'de açılıyorsa silip \"Web Uygulaması Olarak Aç\" seçeneğiyle yeniden ekle.") +
+      '</div><div class="setting-side"><span class="badge ' + (isStandalone() ? "ok" : "soon") + '">' + (isStandalone() ? "Bağımsız" : "Safari") + "</span></div></div>" +
       '<div class="setting-row"><div><div class="setting-label">Gizlilik</div><div class="setting-sub">Veriler yalnızca bu cihazda saklanır; hesap veya sunucu yoktur.</div></div></div>' +
       "</div></section>";
     return html;
@@ -1333,6 +1361,11 @@
     if (action === "clear") return clearAll();
     if (action === "go-bakim") { location.hash = "bakim"; return; }
     if (action === "go-docs") { location.hash = "belgeler"; return; }
+    if (action === "dismiss-hint") {
+      try { localStorage.setItem(INSTALL_HINT_KEY, "1"); } catch (error) {}
+      render();
+      return;
+    }
   }
 
   async function clearAll() {

@@ -76,6 +76,14 @@ node --test test/
 
 `file://` üzerinden service worker çalışmaz; önizleme için yerel sunucu kullan.
 
+## Ana ekrana ekleme (iPhone / iPad)
+
+1. Uygulamayı Safari'de aç.
+2. **Paylaş → Ana Ekrana Ekle**.
+3. iOS 26'da **“Web Uygulaması Olarak Aç”** seçeneğini açık bırak.
+
+Bu seçenek kapalıysa simge bir yer imi olur ve Safari sekmesinde açılır; Safari küçültülünce uygulama da küçülür. Bu durumda simgeyi silip yukarıdaki adımlarla yeniden ekle. Uygulama içindeki **Ayarlar → Uygulama modu** satırı hangi modda çalıştığını gösterir.
+
 ## GitHub Pages
 
 Repo kökünde yayınla:

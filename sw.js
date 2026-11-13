@@ -1,4 +1,4 @@
-const CACHE = "arac-takip-v1";
+const CACHE = "arac-takip-v2";
 const PRECACHE = [
   "./",
   "index.html",
